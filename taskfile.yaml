@@ -1,0 +1,7 @@
+version: '3'
+
+tasks:
+  check:
+    desc: "Check errors and issuses"
+    cmds:
+      - go vet ./...
