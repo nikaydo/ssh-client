@@ -1,0 +1,36 @@
+name: Go Lint Check
+
+on:
+  push:
+    branches: main
+  pull_request:
+    branches: main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install system dependencies for OpenGL and X11
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24.4'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Run staticcheck
+        env:
+          PATH: ${{ env.GOPATH }}/bin:${{ env.PATH }}
+        run: staticcheck ./...
