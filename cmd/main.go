@@ -1,6 +1,8 @@
 package main
 
-import v "github.com/nikaydo/ssh-client/internal/app"
+import (
+	v "github.com/nikaydo/ssh-client/internal/app"
+)
 
 func main() {
 	a := v.RunApp()

@@ -3,6 +3,7 @@ package app
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -36,8 +37,9 @@ func (c *ConnectEntrys) FillStruct(w, h float32) {
 
 func (c *ConnectEntrys) MakeContainer() *fyne.Container {
 	c.Cbutton = widget.NewButton("Подключиться", nil)
-	B := container.NewHBox(container.NewGridWrap(fyne.NewSize(200, 36), c.Cbutton))
-	return container.NewVBox(
+	B := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(200, 36), c.Cbutton))
+	return container.New(
+		layout.NewVBoxLayout(),
 		c.LoginC,
 		c.PasswordC,
 		c.IpC,

@@ -1,15 +1,12 @@
 package app
 
 import (
-	"bufio"
-	"log"
-
 	myssh "github.com/nikaydo/ssh-client/internal/ssh"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
+	"fyne.io/fyne/v2/layout"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -26,80 +23,93 @@ func RunApp() App {
 func (a *App) MakeWindow() {
 	a.Window = a.App.NewWindow("ssh client")
 	Tabs := InitTabs()
-	UpButtons := InitUpButtons()
+	UpButtons := InitUpMenu()
 	UpButtons.ConnectE.FillStruct(200, 36)
-
-	command := widget.NewEntry()
-	grid := widget.NewTextGrid()
-	grid.Hide()
-	command.Hide()
-
-	scroll := container.NewScroll(container.NewStack(grid))
-
 	labelsConnect := SetLables([]fyne.CanvasObject{}, []string{"Логин", "Пороль", "ip"})
-	session_cmd := container.NewBorder(nil, command, nil, nil, scroll)
 	form := container.NewBorder(
 		UpButtons.GetContainer(),
 		nil,
-		container.NewVBox(container.NewHBox(labelsConnect, UpButtons.ConnectE.MakeContainer())),
+		container.New(layout.NewVBoxLayout(), container.New(layout.NewHBoxLayout(), labelsConnect, UpButtons.ConnectE.MakeContainer())),
 		nil,
 	)
-	UpButtons.ConnectButton(func() {
 
+	UpButtons.Connect.OnTapped = func() {
+		UpButtons.Connect.Enable()
 		a.Window.SetContent(form)
-	})
+		UpButtons.Connect.Disable()
+		UpButtons.Consoles.Enable()
+	}
 
-	a.Window.SetContent(form)
+	UpButtons.Consoles.OnTapped = func() {
+		UpButtons.Consoles.Enable()
+		a.Window.SetContent(container.NewBorder(
+			UpButtons.GetContainer(),
+			nil,
+			nil,
+			nil,
+			Tabs.DocTabs))
+		UpButtons.Consoles.Disable()
+		UpButtons.Connect.Enable()
+	}
 
-	Tabs.Tabs.OnClosed = func(ti *container.TabItem) {
-		if len(Tabs.Tabs.Items) == 0 {
+	UpButtons.Connect.Disable()
+
+	Tabs.DocTabs.OnClosed = func(ti *container.TabItem) {
+		if len(Tabs.DocTabs.Items) == 0 {
 			a.Window.SetContent(form)
 		}
 	}
 
-	var session myssh.Session
 	UpButtons.ConnectE.Cbutton.OnTapped = func() {
-
-		Tabs.Add(UpButtons.ConnectE.Ip.Text, session_cmd)
-
+		TabList := InitTabs()
+		TabList.DocTabs = Tabs.DocTabs
+		var session myssh.Session
+		id, grid, scroll := TabList.Add("Подключение...", &session)
+		TabList.AppendDocTab()
 		s := myssh.SetConfig(UpButtons.ConnectE.Login.Text, UpButtons.ConnectE.Password.Text)
-
-		if err := s.Dial(UpButtons.ConnectE.Ip.Text); err != nil {
-			log.Println(err)
-		}
-
-		session, _ = myssh.InitSession(s, ssh.TerminalModes{})
-		if err := session.Shell(); err != nil {
-			log.Println(err)
-		}
-
+		UpButtons.Connect.Enable()
+		UpButtons.Consoles.Disable()
+		TabList.ShowAll()
 		go func() {
-			scanner := bufio.NewScanner(session.StdoutPipe)
-			for scanner.Scan() {
-				line := scanner.Text()
-
+			if err := s.Dial(UpButtons.ConnectE.Ip.Text); err != nil {
 				fyne.Do(func() {
-					grid.Append(line)
-					scroll.ScrollToBottom()
+					TabList.Items[id].Tab.Text = "Ошибка"
+					TabList.DocTabs.Refresh()
+					grid.Append(err.Error())
 				})
+				return
 			}
+			session, _ = myssh.InitSession(s, session, ssh.TerminalModes{})
+
+			if err := session.Shell(); err != nil {
+				fyne.Do(func() {
+					TabList.Items[id].Tab.Text = "Ошибка"
+					TabList.DocTabs.Refresh()
+					grid.Append(err.Error())
+				})
+				return
+			}
+			TabList.Items[id].Tab.Text = UpButtons.ConnectE.Ip.Text
+			item := TabList.Items[id]
+			item.Session = session
+			TabList.Items[id] = item
+			fyne.Do(func() {
+				TabList.DocTabs.Refresh()
+			})
+			myssh.StartListening(session, grid, scroll)
+
 		}()
 
-		grid.Show()
-		command.Show()
-
-		a.Window.SetContent(Tabs.Tabs)
+		form := container.NewBorder(
+			UpButtons.GetContainer(),
+			nil,
+			nil,
+			nil,
+			TabList.DocTabs)
+		a.Window.SetContent(form)
 		scroll.ScrollToBottom()
 	}
 
-	command.OnSubmitted = func(str string) {
-		_, err := session.StdinPipe.Write([]byte(str + "\n"))
-		if err != nil {
-			log.Println(err)
-		}
-		command.SetText("")
-		scroll.ScrollToBottom()
-	}
 	a.Window.SetContent(form)
 	a.Window.Resize(fyne.NewSize(1000, 800))
 	a.Window.ShowAndRun()
